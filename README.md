@@ -1,95 +1,93 @@
-[![Build Status](https://github.com/DependencyTrack/frontend/actions/workflows/ci-build.yaml/badge.svg)](https://github.com/DependencyTrack/frontend/actions?workflow=Build+CI)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/364443f9f30c4b70b56e5be76c9e079c)](https://www.codacy.com/gh/DependencyTrack/frontend/dashboard?utm_source=github.com&utm_medium=referral&utm_content=DependencyTrack/frontend&utm_campaign=Badge_Grade)
-[![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)][License]
-[![Latest (including pre-releases)](https://img.shields.io/github/v/release/dependencytrack/frontend?include_prereleases)](https://github.com/DependencyTrack/frontend/releases)
+# Dependency-Track Project Local Setup with modifications
+This guide will briefly describe how to install and make changes to the Dependency-Track source code. The idea behind the changes is to add functionality to Dependency-Track to allow for a custom vulnerability source.
 
-# Dependency-Track Front-End
+## Software Installation
 
-The Front-End is a Single Page Application (SPA) used in Dependency-Track, an open source Component Analysis platform
-that allows organizations to identify and reduce risk in the software supply chain.
+1. Install **Chocolatey**: 
+    ```powershell
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    ```
+   
+2. Install **Git**:
+    ```powershell
+    choco install git
+    ```
+    
+3. Install **NodeJS**, **npm** and **http-server**:
+    ```powershell
+    choco install nodejs
+    node -v
+    npm -v
+    npm install -g http-server
+    ```
 
-The project is built with:
+4. Install **Docker** following the instructions on the [official website](https://docs.docker.com/get-docker/).
 
-- Vue.js
-- Bootstrap Vue
-- CoreUI
+## Configuration of Local Dependency-Track
+1. Clone the DepTrack Repositories:
+    This repositories is required for customization of DepTrack functionality and adding new features
 
-<hr>
+    ```powershell
+    git clone https://github.com/DependencyTrack/dependency-track.git
+    git clone https://github.com/DependencyTrack/frontend.git
+    ```
 
-![alt text](https://raw.githubusercontent.com/DependencyTrack/dependency-track/master/docs/images/screenshots/dashboard.png)
+2. Downloads the latest Docker Compose file
+    ```powershell
+    curl -LO https://dependencytrack.org/docker-compose.yml
+    ```
+3. Starts the stack using Docker Compose
+    ```powershell
+    docker-compose up -d
+    ```
 
-## Compatibility Matrix
+## Local Dependency-Track with custom changes
+1. In general you need to make changes in the source code of DepTrack (frontend part), add your functionality and then rebuild the project, and create your own image, according to these steps, but it does not work correctly, at this stage and can create problems with this custom image! To try this method you can do the following steps:
 
-Always use the Front-End version that is compatible with the Dependency-Track API Server in use.
+    ### Make you changes in such files:
+    - ..\frontend\src\views\administration\Administration.vue
+    - Add new VulnSourceCustomSource.vue file into ..\frontend\src\views\administration\vuln-sources
+    - ..\frontend\src\views\administration\AdminMenu.vue
 
-| Dependency-Track API Server | Front-End     |
-| :-------------------------- | :------------ |
-| v4.2                        | v4.2          |
-| v4.1                        | v1.2          |
-| v4.0                        | v1.1          |
-| v3.8                        | v1.0          |
-| v1.0 - v3.7.1               | Not supported |
+    ### Then you need to rebuild your project and create **dist** folder for frontend part
+    ```powershell
+    cd "C:\Users\Volodymyr_Kumurzhy\OneDrive - EPAM\EPMUASP\frontend"
+    npm install
+    npm run build
+    ```
 
-Starting with Dependency-Track v4.2, the API Server and the Frontend now have the same major and minor (semantic) version. Patch versions however, may continue to be unique.
+    ### Once the project is built, you can build a Docker image:
+    ```powershell
+    docker build -f docker\Dockerfile.alpine -t dependencytrack/frontend-local .
+    ```
 
-## Binary Distributions
+    ### Then you have to update your **docker-compose.yml** and use your locally created image
+    ```yml
+      dtrack-frontend:
+        image: dependencytrack/frontend-local #usage of new image
+    ```
 
-Pre-compiled distributions are available in two variants:
+    ### Then you should just run new docker-compose file, ut for unknown reasons there is an error that there is no necessary script in the image to start the container
 
-- [Docker container running NGINX](https://hub.docker.com/r/dependencytrack/frontend)
-- [GitHub Release (zip archive)](https://github.com/DependencyTrack/frontend/releases)
+2. Another option for testing local changes, at least in the frontend part, is to use the http server that was installed earlier. To do this you need:
 
-The Docker container provides the fastest, most consistent deployment option and is recommended.
-The Docker container includes NGINX and a pre-deployed Front-End release.
+    ### Make you changes in such files:
+    - ..\frontend\src\views\administration\Administration.vue
+    - Add new VulnSourceCustomSource.vue file into ..\frontend\src\views\administration\vuln-sources
+    - ..\frontend\src\views\administration\AdminMenu.vue
 
-## Build Setup
+    ### Starts the stack using Docker Compose with default images and stop & remove frontend container
+    ```powershell
+    docker-compose up -d
+    docker stop ***-dtrack-frontend-1
+    docker rm ***-dtrack-frontend-1
+    ```
 
-```bash
-# Install dependencies
-npm install
+    ### You need to start an http server with requests redirected to the deptrack api server port, for this you need to use the command:
+    ```powershell
+    $env:VUE_APP_SERVER_URL="http://localhost:8081" ; npm run serve
+    ```
 
-# Serve with hot reload at localhost:8080
-npm run serve
-
-# Build for production with minification
-npm run build
-
-# Run linter
-npm run lint
-
-# Generates a CycloneDX software bill-of-materials
-npm run bom
-```
-
-## Development Setup
-
-In order to test with a Dependency-Track instance, the `.env.development` file needs to be modified and the `VUE_APP_SERVER_URL` property updated to
-reflect the base URL of a Dependency-Track server.
-
-## Deployment
-
-![Deployment Options](https://raw.githubusercontent.com/DependencyTrack/frontend/master/docs/images/Frontend-Deployment.svg?sanitize=true)
-
-The front-end is deployed to a general purpose web server (e.g. NGINX or Apache). To configure the front-end
-for this scenario, simply change the value of API_BASE_URL in static/config.json.
-
-```json
-{
-  "API_BASE_URL": "https://drack-server.example.com"
-}
-```
-
-## Internationalization (i18n)
-
-This project supports internationalization. Currently, only English language is supported. Pull requests to support additional languages are encouraged.
-
-Note to developers: Textual labels are defined in `src/i18n/locales/{lang}.json`. Ensure that all labels are defined here and that components use i18n, not textual labels directly.
-
-## Copyright & License
-
-Dependency-Track is Copyright (c) Steve Springett. All Rights Reserved.
-
-Permission to modify and redistribute is granted under the terms of the
-Apache 2.0 license. See the [LICENSE] file for the full license.
-
-[License]: https://github.com/DependencyTrack/frontend/blob/master/LICENSE
+    ### After these steps, Deptrack will run on localhost 8080 and redirect requests to the server side of the application to localhotst 8081.
